@@ -2,66 +2,56 @@ package page;
 
 import base.BasePage;
 import locator.CheckoutPageLocator;
-import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
+import org.openqa.selenium.support.ui.WebDriverWait;
 
-import java.util.List;
+import java.time.Duration;
 
+/**
+ * Rezervasyon (checkout) sayfası.
+ *
+ * ÖNEMLİ SINIR: Bu sınıf gerçek bir satın alma akışı başlatmaz. "Ödemeye ilerle"
+ * butonuna basılmaz; sadece butonun kullanılabilir olduğu doğrulanır. Formlar
+ * bilinçli olarak AÇIKÇA SAHTE test verisiyle doldurulur.
+ */
 public class CheckoutPage extends BasePage {
+
+    private final WebDriverWait checkoutWait;
 
     public CheckoutPage(WebDriver driver) {
         super(driver);
+        this.checkoutWait = new WebDriverWait(driver, Duration.ofSeconds(40));
     }
 
-    /**
-     * Ödeme / Rezervasyon (Checkout) sayfasının başarıyla yüklendiğini doğrular.
-     */
+    /** Rezervasyon sayfasının yüklenmesini bekler. */
+    public CheckoutPage waitUntilLoaded() {
+        checkoutWait.until(ExpectedConditions.urlContains(CheckoutPageLocator.CHECKOUT_URL_PART));
+        checkoutWait.until(ExpectedConditions.visibilityOfElementLocated(
+                CheckoutPageLocator.FIRST_PASSENGER_SECTION));
+        return this;
+    }
+
     public boolean isCheckoutPageLoaded() {
-        try {
-            wait.until(ExpectedConditions.or(
-                    ExpectedConditions.urlContains("odeme"),
-                    ExpectedConditions.urlContains("rezervasyon"),
-                    ExpectedConditions.urlContains("booking")
-            ));
-            return isElementDisplayed(CheckoutPageLocator.CONTACT_EMAIL_INPUT)
-                    || isElementDisplayed(CheckoutPageLocator.FIRST_NAME_INPUT)
-                    || isElementDisplayed(CheckoutPageLocator.FLIGHT_SUMMARY_BOX)
-                    || isElementDisplayed(CheckoutPageLocator.PROCEED_PAYMENT_BUTTON);
-        } catch (Exception e) {
-            return false;
-        }
+        return driver.getCurrentUrl().contains(CheckoutPageLocator.CHECKOUT_URL_PART);
     }
 
-    /**
-     * İletişim bilgileri form alanlarının görünür olduğunu doğrular.
-     */
     public boolean isContactInfoSectionDisplayed() {
         return isElementDisplayed(CheckoutPageLocator.CONTACT_EMAIL_INPUT)
                 && isElementDisplayed(CheckoutPageLocator.CONTACT_PHONE_INPUT);
     }
 
-    /**
-     * Yolcu bilgileri form alanlarının görünür olduğunu doğrular.
-     */
     public boolean isPassengerInfoSectionDisplayed() {
         return isElementDisplayed(CheckoutPageLocator.FIRST_NAME_INPUT)
                 && isElementDisplayed(CheckoutPageLocator.LAST_NAME_INPUT);
     }
 
-    /**
-     * Uçuş ve fiyat özeti alanının görünür olduğunu doğrular.
-     */
-    public boolean isFlightSummaryDisplayed() {
-        return isElementDisplayed(CheckoutPageLocator.FLIGHT_SUMMARY_BOX)
-                || isElementDisplayed(CheckoutPageLocator.TOTAL_PRICE_TEXT);
+    /** "Ödemeye ilerle" butonu görünür mü? (Basılmaz - bkz. sınıf yorumu.) */
+    public boolean isProceedPaymentButtonDisplayed() {
+        return isElementDisplayed(CheckoutPageLocator.PROCEED_PAYMENT_BUTTON);
     }
 
-    /**
-     * İletişim bilgilerini (E-posta ve Telefon) doldurur.
-     */
     public CheckoutPage fillContactInfo(String email, String phone) {
         writeText(CheckoutPageLocator.CONTACT_EMAIL_INPUT, email);
         writeText(CheckoutPageLocator.CONTACT_PHONE_INPUT, phone);
@@ -69,56 +59,65 @@ public class CheckoutPage extends BasePage {
     }
 
     /**
-     * 1. Yolcu bilgilerini (Ad, Soyad, TC Kimlik No, Doğum Tarihi, Cinsiyet) doldurur.
+     * 1. yolcunun bilgilerini doldurur.
+     *
+     * TC Kimlik No alanı BİLİNÇLİ OLARAK doldurulmuyor: sahte ama geçerli
+     * görünen bir kimlik numarası üretmek doğru bir test verisi pratiği değil.
+     * Kritik yol doğrulaması için gerekli de değil - formun kullanılabilir
+     * olduğunu ad/soyad/doğum tarihi/cinsiyet alanları üzerinden doğruluyoruz.
      */
-    public CheckoutPage fillPassengerInfo(
-            String firstName,
-            String lastName,
-            String tcId,
-            String day,
-            String month,
-            String year,
-            String gender) {
-
+    public CheckoutPage fillPassengerInfo(String firstName, String lastName,
+                                          String birthDay, String birthMonth, String birthYear,
+                                          boolean male) {
         writeText(CheckoutPageLocator.FIRST_NAME_INPUT, firstName);
         writeText(CheckoutPageLocator.LAST_NAME_INPUT, lastName);
 
-        try {
-            writeText(CheckoutPageLocator.TC_ID_INPUT, tcId);
-        } catch (Exception ignored) {}
+        // Gün ve ay seçeneklerinin value'ları SIFIR DOLGULU ("01", "02"...).
+        // Çağıran tarafı bu ayrıntıya mecbur bırakmamak için burada normalize
+        // ediyoruz; "1" de "01" de kabul ediliyor.
+        new Select(checkoutWait.until(ExpectedConditions.visibilityOfElementLocated(
+                CheckoutPageLocator.BIRTH_DATE_DAY))).selectByValue(padTwoDigits(birthDay));
+        new Select(driver.findElement(CheckoutPageLocator.BIRTH_DATE_MONTH))
+                .selectByValue(padTwoDigits(birthMonth));
+        new Select(driver.findElement(CheckoutPageLocator.BIRTH_DATE_YEAR)).selectByValue(birthYear);
 
-        // Doğum Tarihi Seçimi (Dropdown ise)
-        try {
-            List<WebElement> daySelects = findElements(CheckoutPageLocator.BIRTH_DATE_DAY);
-            if (!daySelects.isEmpty()) {
-                new Select(daySelects.get(0)).selectByValue(day);
-            }
-            List<WebElement> monthSelects = findElements(CheckoutPageLocator.BIRTH_DATE_MONTH);
-            if (!monthSelects.isEmpty()) {
-                new Select(monthSelects.get(0)).selectByValue(month);
-            }
-            List<WebElement> yearSelects = findElements(CheckoutPageLocator.BIRTH_DATE_YEAR);
-            if (!yearSelects.isEmpty()) {
-                new Select(yearSelects.get(0)).selectByValue(year);
-            }
-        } catch (Exception ignored) {}
-
-        // Cinsiyet seçimi
-        try {
-            if ("Erkek".equalsIgnoreCase(gender) || "M".equalsIgnoreCase(gender)) {
-                click(CheckoutPageLocator.GENDER_MALE_LABEL);
-            } else {
-                click(CheckoutPageLocator.GENDER_FEMALE_LABEL);
-            }
-        } catch (Exception ignored) {}
-
+        // Radio'nun kendisi görsel olarak gizli olabildiği için label üzerinden tıklıyoruz
+        clickGender(male);
         return this;
     }
 
-    /**
-     * Ödeme / İlerleme butonunun görünür veya tıklanabilir olduğunu doğrular.
-     */
-    public boolean isProceedPaymentButtonDisplayed() {
-        return isElementDisplayed(CheckoutPageLocator.PROCEED_PAYMENT_BUTTON);
+    /** "1" -> "01" (yıl gibi 4 haneli değerlere dokunmaz). */
+    private static String padTwoDigits(String value) {
+        return value.length() == 1 ? "0" + value : value;
+    }
+
+    private void clickGender(boolean male) {
+        String id = male ? "gender_M_0" : "gender_F_0";
+        org.openqa.selenium.WebElement radio =
+                driver.findElement(male ? CheckoutPageLocator.GENDER_MALE_RADIO
+                                        : CheckoutPageLocator.GENDER_FEMALE_RADIO);
+        if (radio.isSelected()) {
+            return;
+        }
+        scrollToElement(radio);
+        try {
+            driver.findElement(org.openqa.selenium.By.cssSelector("label[for='" + id + "']")).click();
+        } catch (org.openqa.selenium.NoSuchElementException e) {
+            ((org.openqa.selenium.JavascriptExecutor) driver)
+                    .executeScript("arguments[0].click();", radio);
+        }
+    }
+
+    /** Seçilen yolcu bilgilerinin forma gerçekten yazıldığını doğrular. */
+    public String getFirstNameValue() {
+        return driver.findElement(CheckoutPageLocator.FIRST_NAME_INPUT).getDomProperty("value");
+    }
+
+    public String getLastNameValue() {
+        return driver.findElement(CheckoutPageLocator.LAST_NAME_INPUT).getDomProperty("value");
+    }
+
+    public String getContactEmailValue() {
+        return driver.findElement(CheckoutPageLocator.CONTACT_EMAIL_INPUT).getDomProperty("value");
     }
 }

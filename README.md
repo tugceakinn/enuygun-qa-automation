@@ -66,10 +66,12 @@ qa-interview-project/
 │           │   ├── ClassicResultsPage.java
 │           │   ├── FlightResults.java
 │           │   ├── FlightResultsFactory.java
+│           │   ├── PollingSupport.java
 │           │   ├── HomePage.java
 │           │   ├── ResultsPage.java
 │           │   └── ResultsVariant.java
 │           ├── tests/             # UI Test Senaryoları
+│           │   ├── CriticalPathTest.java
 │           │   ├── DataScraperTest.java
 │           │   ├── FlightSearchTest.java
 │           │   └── FlightSortTest.java
@@ -128,6 +130,16 @@ Enuygun, uçuş sonuç sayfasında iki farklı arayüz (Classic vs. Facelift) su
   1. Filtre sonrası listenin boş olmadığı doğrulanır.
   2. Listelenen tüm uçuşların sadece "Türk Hava Yolları" olduğu teyit edilir.
   3. Fiyatların küçükten büyüğe (artan sırada) sıralandığı matematiksel olarak doğrulanır.
+
+#### Case 3: Kritik Yol Testi (`CriticalPathTest`)
+- **Senaryo:** Arama → gidiş uçuşu + paket seçimi → dönüş uçuşu + paket seçimi → rezervasyon sayfası.
+- **Doğrulamalar:**
+  1. Rezervasyon sayfasına (`/rezervasyon/detay`) ulaşıldığı doğrulanır.
+  2. İletişim ve yolcu bilgileri formlarının görüntülendiği doğrulanır.
+  3. Formlar sahte test verisiyle doldurulur ve değerlerin forma işlendiği doğrulanır.
+  4. "Ödemeye ilerle" butonunun kullanılabilir olduğu doğrulanır.
+- **Bilinçli sınır:** Test "Ödemeye ilerle" butonuna **basmaz**; gerçek bir satın alma akışı başlatılmaz. Kullanılan yolcu bilgileri açıkça sahte test verisidir, TC Kimlik alanı doldurulmaz.
+- **Bilinen kısıt:** Rezervasyon akışı klasik sonuç sayfası tasarımı için implemente edildi ve doğrulandı. A/B testi nedeniyle diğer tasarım gelirse test, çerezleri temizleyip kovaya yeniden atanmayı dener; başarısız olursa açıklayıcı bir mesajla `SkipException` fırlatır.
 
 ---
 

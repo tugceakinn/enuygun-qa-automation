@@ -273,6 +273,60 @@ public class ClassicResultsPage extends BasePage implements FlightResults {
     }
 
     // ==================================================================
+    // CASE 3 - Uçuş seçimi ve rezervasyona ilerleme
+    // ==================================================================
+
+    /**
+     * İlk gidiş ve ilk dönüş uçuşunu seçip rezervasyon sayfasına ilerler.
+     *
+     * Akış canlı sitede adım adım doğrulandı; ayrıntısı
+     * {@link locator.ClassicResultsPageLocator} içinde anlatılıyor. Dikkat
+     * edilecek nokta: son adımda ayrı bir "ilerle" butonu YOK - dönüş paketine
+     * tıklamak doğrudan rezervasyon sayfasına yönlendiriyor.
+     */
+    public CheckoutPage selectFirstDepartureAndReturnFlight() {
+        // 1) Gidiş uçuşunu seç
+        WebElement departureList = resultsWait.until(ExpectedConditions.visibilityOfElementLocated(
+                ClassicResultsPageLocator.DEPARTURE_FLIGHT_LIST));
+        clickFirstSelectButtonIn(departureList, "gidiş");
+
+        // 2) Açılan paketten "Seç ve İlerle"
+        WebElement departurePackage = resultsWait.until(ExpectedConditions.visibilityOfElementLocated(
+                ClassicResultsPageLocator.OPENED_PACKAGE_WRAPPER));
+        WebElement proceed = departurePackage.findElement(ClassicResultsPageLocator.PROVIDER_SELECT_BUTTON);
+        scrollToElement(proceed);
+        clickSafely(proceed);
+
+        // 3) Dönüş listesi görünür olunca ilk dönüş uçuşunu seç
+        WebElement returnList = resultsWait.until(ExpectedConditions.visibilityOfElementLocated(
+                ClassicResultsPageLocator.RETURN_FLIGHT_LIST));
+        clickFirstSelectButtonIn(returnList, "dönüş");
+
+        // 4) Dönüş paketine tıkla -> rezervasyon sayfası
+        WebElement returnPackage = resultsWait.until(d -> {
+            WebElement list = d.findElement(ClassicResultsPageLocator.RETURN_FLIGHT_LIST);
+            List<WebElement> items = list.findElements(ClassicResultsPageLocator.RETURN_PACKAGE_ITEM);
+            return items.isEmpty() ? null : items.get(0);
+        });
+        scrollToElement(returnPackage);
+        clickSafely(returnPackage);
+
+        return new CheckoutPage(driver).waitUntilLoaded();
+    }
+
+    private void clickFirstSelectButtonIn(WebElement list, String leg) {
+        List<WebElement> buttons = list.findElements(ClassicResultsPageLocator.SELECT_FLIGHT_BUTTON);
+        if (buttons.isEmpty()) {
+            throw new IllegalStateException(
+                    leg + " listesinde tıklanabilir 'Seç' butonu bulunamadı. " +
+                    "Liste boş olabilir (filtre çok dar) veya locator değişmiş olabilir.");
+        }
+        WebElement button = buttons.get(0);
+        scrollToElement(button);
+        clickSafely(button);
+    }
+
+    // ==================================================================
     // Yardımcılar
     // ==================================================================
 

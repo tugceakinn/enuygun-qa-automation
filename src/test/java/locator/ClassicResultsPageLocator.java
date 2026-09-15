@@ -56,6 +56,33 @@ public class ClassicResultsPageLocator {
     /** Havayolu filtresi akordeonu. */
     public static final By AIRLINE_FILTER_HEADER = By.cssSelector(".ctx-filter-airline");
 
+    // ------------------------------------------------------------------
+    // CASE 3 - Uçuş seçimi / rezervasyona ilerleme akışı
+    //
+    // Gidiş-dönüş aramada akış 4 adım (canlı sitede doğrulandı):
+    //   1) Gidiş listesinde "Seç"          -> paket seçenekleri açılır
+    //   2) "Seç ve İlerle"                 -> dönüş listesi görünür hale gelir
+    //   3) Dönüş listesinde "Seç"          -> paket seçenekleri açılır
+    //   4) Dönüş paketine tıklama          -> DOĞRUDAN rezervasyon sayfasına gider
+    //      (bu adımda ayrı bir "ilerle" butonu YOK)
+    // ------------------------------------------------------------------
+
+    public static final By DEPARTURE_FLIGHT_LIST = By.cssSelector(".flight-list-departure");
+    public static final By RETURN_FLIGHT_LIST = By.cssSelector(".flight-list-return");
+
+    /** Kart üzerindeki "Seç" butonu. */
+    public static final By SELECT_FLIGHT_BUTTON = By.cssSelector("button.action-select-btn");
+
+    /** "Seç" sonrası açılan paket alanı. */
+    public static final By OPENED_PACKAGE_WRAPPER = By.cssSelector(".flight-item__wrapper.package-opened");
+
+    /** Gidiş paketinden sonraki "Seç ve İlerle" butonu. */
+    public static final By PROVIDER_SELECT_BUTTON = By.cssSelector("button[data-testid='providerSelectBtn']");
+
+    /** Dönüş paket kartı - tıklanınca rezervasyon sayfasına yönlendirir. */
+    public static final By RETURN_PACKAGE_ITEM =
+            By.cssSelector("[data-testid^='returnProviderPackageItem']");
+
     public static By airlineFilterLabelByName(String airlineName) {
         return By.xpath("//label[contains(normalize-space(.), \"" + airlineName + "\")]");
     }
