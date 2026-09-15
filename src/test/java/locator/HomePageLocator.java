@@ -55,6 +55,15 @@ public class HomePageLocator {
 
     public static final By ACTIVE_DAY_ANY = By.cssSelector("[data-testid='datepicker-active-day']");
 
+    /**
+     * Seçilebilir VE seçilemez (rezervasyon aralığı dışı) tüm gün hücreleri.
+     * "Takvim gerçekten ilerliyor mu?" kontrolünde kullanılıyor - aralığın
+     * sonuna gelindiğinde günler passive olduğu için sadece active'e bakmak
+     * yanıltıcı olurdu.
+     */
+    public static final By ANY_DAY = By.cssSelector(
+            "[data-testid='datepicker-active-day'], [data-testid='datepicker-passive-day']");
+
     // NOT: masaüstünde gerçek testid enuygun-homepage-flight-submitButton'tır
     // (dar/mobil genişlikte enuygun-homepage-flight-search-button kullanılıyor).
     public static final By SEARCH_BUTTON = By.cssSelector("[data-testid='enuygun-homepage-flight-submitButton']");

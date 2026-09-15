@@ -331,10 +331,37 @@ public class ClassicResultsPage extends BasePage implements FlightResults {
     // ==================================================================
 
     /** Akordeon kapalıysa açar. */
+    /**
+     * Filtre akordeonunu açar - ZATEN AÇIKSA DOKUNMAZ.
+     *
+     * BUG (bulundu): Bu metot önce durumu kontrol etmeden körlemesine tıklıyordu.
+     * Akordeon o anda zaten açıksa tıklama onu KAPATIYOR, ardından beklenen
+     * slider/checkbox elemanları hiç görünmüyor ve test "filtre paneli açılmadı"
+     * diye zaman aşımına uğruyordu. Panelin bazen açık gelmesi tarayıcı ve
+     * zamanlamaya göre değiştiği için hata yalnızca Firefox'ta ortaya çıkmıştı -
+     * klasik bir "kör toggle" hatası.
+     *
+     * Bootstrap collapse kullanıldığı için açık durumun işareti net:
+     * kapalıyken class="collapse", açıkken class="collapse show".
+     */
     private void openAccordion(org.openqa.selenium.By header) {
         WebElement headerEl = resultsWait.until(ExpectedConditions.presenceOfElementLocated(header));
         scrollToElement(headerEl);
+
+        if (isAccordionOpen(headerEl)) {
+            return;
+        }
+
         clickSafely(headerEl);
+
+        // Açılma animasyonu bitene kadar bekle; aksi halde içerideki elemanları
+        // henüz render olmadan aramaya başlıyoruz.
+        resultsWait.until(d -> isAccordionOpen(d.findElement(header)));
+    }
+
+    private boolean isAccordionOpen(WebElement headerEl) {
+        WebElement card = headerEl.findElement(org.openqa.selenium.By.xpath("ancestor::*[contains(@class,'filter-card')][1]"));
+        return !card.findElements(org.openqa.selenium.By.cssSelector(".collapse.show")).isEmpty();
     }
 
     /** Normal click engellenirse JS ile tıklar (overlay / pointer-events sorunları için). */

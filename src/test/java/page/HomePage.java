@@ -119,40 +119,63 @@ public class HomePage extends BasePage {
     }
 
     /**
-     * Takvim açıldığında hedef tarih görünen ayda olmayabilir. Görünmüyorsa
-     * "ileri ay" butonuna basıp tekrar bakıyoruz; bulunca tıklıyoruz.
-     * (Takvimde geri gitme butonu yok, geçmişe dönülemiyor.)
+     * Takvimde hedef tarihi bulup tıklar; görünen ayda değilse "ileri ay"
+     * butonuna basarak ilerler. (Takvimde geri gitme butonu yok.)
+     *
+     * BUG (bulundu, hata dökümünden doğrulandı): Bu metot önce gün aramasını
+     * ilgili alanın datepicker KAPSAYICISINA kapsıyordu. Ama takvim günleri her
+     * zaman o kapsayıcının içinde render edilmiyor (popup ayrı bir katmana
+     * taşınabiliyor); ileri-ay butonu ise kapsayıcının içinde. Sonuç: gün hiç
+     * bulunamıyor, buton her turda tıklanıyor ve takvim aylarca ileri kayıyordu
+     * - rezervasyon aralığının sonuna varıp tüm günler "passive" olunca da
+     * TimeoutException'la patlıyordu.
+     *
+     * Çözüm: aynı anda yalnızca bir takvim açık olduğu için günü SAYFA GENELİNDE
+     * ve GÖRÜNÜRLÜK şartıyla arıyoruz; ileri-ay butonu ise alana kapsalı kalıyor
+     * (çünkü o testid gerçekten alana özgü).
+     *
+     * Ayrıca "ilerleme var mı" kontrolü eklendi: ileri tıklamaya rağmen görünen
+     * ilk tarih değişmiyorsa takvim takılmış demektir, üst sınırı beklemeden
+     * hemen ve net bir mesajla başarısız oluyoruz.
      */
     private void selectDateInCalendar(String fieldName, String date) {
-        By container = HomePageLocator.datepickerContainer(fieldName);
         By dayLocator = HomePageLocator.dynamicDate(date);
         By forwardButton = HomePageLocator.monthForwardButton(fieldName);
 
-        // Takvim popup'i acildiktan hemen sonra henuz render olmamis olabilir;
-        // asil gun aramasina baslamadan once en az bir gun hucresi gelene
-        // kadar bekliyoruz (aksi halde ilk kontrol yanlislikla "gorunmuyor"
-        // deyip gereksiz yere ileri ay tusuna basabiliyordu).
-        calendarWait.until(d -> !d.findElement(container)
-                .findElements(HomePageLocator.ACTIVE_DAY_ANY).isEmpty());
+        // Takvim açıldıktan hemen sonra henüz render olmamış olabilir; gün
+        // aramasına başlamadan önce en az bir gün hücresi gelsin.
+        calendarWait.until(d -> d.findElements(HomePageLocator.ACTIVE_DAY_ANY).stream()
+                .anyMatch(WebElement::isDisplayed));
 
         int[] forwardClicks = {0};
+        String[] lastFirstDate = {null};
+
         calendarWait.until(d -> {
-            WebElement containerEl = d.findElement(container);
-            boolean visible = containerEl.findElements(dayLocator).stream().anyMatch(WebElement::isDisplayed);
-            if (visible) {
+            if (isDisplayed(d.findElements(dayLocator))) {
                 return true;
             }
+
+            String firstDate = firstVisibleDayTitle(d);
+
+            if (forwardClicks[0] > 0 && firstDate != null && firstDate.equals(lastFirstDate[0])) {
+                throw new IllegalStateException(
+                        "'" + fieldName + "' takviminde 'ileri ay' tuşuna basıldı ama görünen ay " +
+                        "değişmedi (hâlâ " + firstDate + "). Takvim ilerlemiyor; " +
+                        "ileri-ay butonu locator'ı yanlış elementi işaret ediyor olabilir.");
+            }
+            lastFirstDate[0] = firstDate;
+
             if (forwardClicks[0] >= MAX_MONTH_FORWARD_CLICKS) {
-                // NoSuchElementException FluentWait tarafindan sessizce yutulup
-                // tekrar denendigi icin BILEREK RuntimeException firlatiyoruz;
-                // boylece 15-30sn boyunca yillarca ileri savrulmak yerine hemen
-                // ve net bir mesajla basarisiz oluyor.
+                // NoSuchElementException FluentWait tarafından sessizce yutulup
+                // tekrar denendiği için BİLEREK IllegalStateException fırlatıyoruz.
                 throw new IllegalStateException(
                         "'" + date + "' tarihi '" + fieldName + "' takviminde " + MAX_MONTH_FORWARD_CLICKS +
-                        " kez 'ileri ay' tusuna basilmasina ragmen bulunamadi. " +
-                        "Tarih formatini (YYYY-MM-DD) ve datepicker-active-day/title locator'ini kontrol et.");
+                        " kez 'ileri ay' tuşuna basılmasına rağmen bulunamadı. " +
+                        "Görünen ilk tarih: " + firstDate + ". Tarih geçmişte veya rezervasyon " +
+                        "aralığının dışında olabilir (o günler 'datepicker-passive-day' olur).");
             }
-            List<WebElement> forwardBtns = containerEl.findElements(forwardButton);
+
+            List<WebElement> forwardBtns = d.findElements(forwardButton);
             if (!forwardBtns.isEmpty() && forwardBtns.get(0).isDisplayed()) {
                 forwardBtns.get(0).click();
                 forwardClicks[0]++;
@@ -160,7 +183,27 @@ public class HomePage extends BasePage {
             return false;
         });
 
-        driver.findElement(container).findElement(dayLocator).click();
+        driver.findElements(dayLocator).stream()
+                .filter(WebElement::isDisplayed)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "'" + date + "' tarihi bulundu ama tıklanmadan önce görünmez oldu."))
+                .click();
+    }
+
+    private static boolean isDisplayed(List<WebElement> elements) {
+        return elements.stream().anyMatch(WebElement::isDisplayed);
+    }
+
+    /** Ekranda görünen ilk takvim gününün title'ı (ilerleme kontrolü için). */
+    private static String firstVisibleDayTitle(WebDriver d) {
+        return d.findElements(HomePageLocator.ANY_DAY)
+                .stream()
+                .filter(WebElement::isDisplayed)
+                .map(e -> e.getDomAttribute("title"))
+                .filter(t -> t != null && !t.isBlank())
+                .findFirst()
+                .orElse(null);
     }
 
     public void clickSearchButton() {
