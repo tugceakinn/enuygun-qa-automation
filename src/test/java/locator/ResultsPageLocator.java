@@ -61,6 +61,21 @@ public class ResultsPageLocator {
     public static final By FLIGHT_AIRLINE_LOGOS =
             By.cssSelector("[data-testid^='flight-airline-logo-departure-single-image-container-'] img");
 
+    // ---- Part 4: veri kazima icin ek alanlar ----
+    public static final By FLIGHT_ARRIVAL_TIMES =
+            By.cssSelector("[data-testid*='flight-timeline-departure-arrival-text-']");
+    public static final By FLIGHT_DURATIONS =
+            By.cssSelector("[data-testid^='flight-route-departure-duration-text-']");
+    public static final By FLIGHT_STOP_INFOS =
+            By.cssSelector("[data-testid^='flight-route-departure-stop-info-']");
+
+    /** data-testid'lerdeki ucus kimligi on eki (alanlari bu kimlikle esliyoruz). */
+    public static final String DEPARTURE_TIME_TESTID_PREFIX = "flight-timeline-departure-departure-text-";
+
+    public static By byTestId(String testId) {
+        return By.cssSelector("[data-testid=\"" + testId + "\"]");
+    }
+
     /** Fiyata gore artan siralama ("En ucuz" butonu). */
     public static final By SORT_CHEAPEST_BUTTON =
             By.cssSelector("[data-testid='sorting-option-cheapest']");

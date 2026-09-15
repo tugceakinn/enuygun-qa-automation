@@ -56,6 +56,8 @@ qa-interview-project/
 │           ├── base/              # Temel altyapı sınıfları
 │           │   ├── BasePage.java
 │           │   └── BaseTest.java
+│           ├── model/             # Kazınan veri modeli
+│           │   └── FlightRecord.java
 │           ├── locator/           # Web Element By tanımları
 │           │   ├── CheckoutPageLocator.java
 │           │   ├── ClassicResultsPageLocator.java
@@ -161,9 +163,12 @@ Swagger Petstore v2 API üzerinde tam CRUD ve Negatif test döngüsü:
 ---
 
 ### Part 4: Veri Çıkarımı & Analiz (`DataScraperTest`)
-- İstanbul -> Lefkoşa rotası için uçuş araması yapılır.
-- Sonuç sayfasındaki tüm uçuş kartlarından **Havayolu, Uçuş Saati, Süre, Aktarma Durumu ve Fiyat** bilgileri kazınır.
-- Elde edilen veriler düzenli bir biçimde `flights.csv` dosyasına yazılır.
+- İstanbul -> Lefkoşa rotası için gidiş-dönüş araması yapılır (rota ve tarihler parametrik).
+- Her uçuştan **Havayolu, Kalkış, Varış, Süre, Aktarma Durumu ve Fiyat** bilgileri kazınır ve `flights.csv` dosyasına yazılır.
+- **Kazıma page object katmanındadır** (`getFlightRecords`). Böylece A/B testinin döndürdüğü iki tasarım için de aynı alanlar üretilir ve CSV çıktısı varyanta göre değişmez.
+- Yeni tasarımda bir uçuşun alanları tek bir kapsayıcıda toplanmadığı için alanlar, `data-testid`'lerin sonundaki **uçuş kimliğiyle** eşlenir — DOM sırasına güvenilmez.
+- **Doğrulamalar:** kazımanın veri ürettiği, CSV satır sayısının kazınan uçuş sayısıyla eşleştiği ve tüm fiyatların pozitif olduğu kontrol edilir.
+- CSV alanları kaçışlanır (virgül/tırnak içeren havayolu adları sütunları kaydırmasın).
 
 ---
 

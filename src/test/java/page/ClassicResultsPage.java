@@ -2,6 +2,7 @@ package page;
 
 import base.BasePage;
 import locator.ClassicResultsPageLocator;
+import model.FlightRecord;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
@@ -270,6 +271,49 @@ public class ClassicResultsPage extends BasePage implements FlightResults {
     @Override
     public int getDisplayedFlightCount() {
         return driver.findElements(ClassicResultsPageLocator.FLIGHT_ITEMS).size();
+    }
+
+    /**
+     * Part 4: uçuş kartlarını yapılandırılmış kayıtlara dönüştürür.
+     *
+     * Klasik tasarımda her uçuş tek bir .flight-item kartında olduğu için
+     * kart kart dolaşıp kartın İÇİNDEN okuyoruz - alanların birbirine karışma
+     * riski yok.
+     */
+    @Override
+    public List<FlightRecord> getFlightRecords() {
+        resultsWait.until(ExpectedConditions.visibilityOfElementLocated(
+                ClassicResultsPageLocator.FLIGHT_ITEMS));
+
+        List<FlightRecord> records = new ArrayList<>();
+        for (WebElement card : driver.findElements(ClassicResultsPageLocator.FLIGHT_ITEMS)) {
+            String price = textIn(card, ClassicResultsPageLocator.CARD_PRICE, "data-price");
+            if (price == null || price.isBlank()) {
+                continue;
+            }
+            records.add(new FlightRecord(
+                    textIn(card, ClassicResultsPageLocator.CARD_AIRLINE, null),
+                    textIn(card, ClassicResultsPageLocator.CARD_DEPARTURE_TIME, null),
+                    textIn(card, ClassicResultsPageLocator.CARD_ARRIVAL_TIME, null),
+                    textIn(card, ClassicResultsPageLocator.CARD_DURATION, null),
+                    textIn(card, ClassicResultsPageLocator.FLIGHT_TRANSIT, null),
+                    Double.parseDouble(price)));
+        }
+        return records;
+    }
+
+    /**
+     * Kart içinden tek bir alanı okur. Alan yoksa null döner - tek bir eksik
+     * alan yüzünden tüm kazıma işleminin çökmesini istemiyoruz.
+     */
+    private static String textIn(WebElement card, org.openqa.selenium.By locator, String attribute) {
+        List<WebElement> found = card.findElements(locator);
+        if (found.isEmpty()) {
+            return null;
+        }
+        WebElement el = found.get(0);
+        String value = attribute == null ? el.getText() : el.getDomAttribute(attribute);
+        return value == null ? null : value.trim();
     }
 
     // ==================================================================

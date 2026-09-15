@@ -2,6 +2,7 @@ package page;
 
 import base.BasePage;
 import locator.ResultsPageLocator;
+import model.FlightRecord;
 import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
@@ -13,6 +14,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import java.time.Duration;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -323,6 +325,67 @@ public class ResultsPage extends BasePage implements FlightResults {
             }
         }
         return true;
+    }
+
+    /**
+     * Part 4: uçuşları yapılandırılmış kayıtlara dönüştürür.
+     *
+     * Bu tasarımda bir uçuşun alanları tek bir kapsayıcıda toplanmıyor; ama her
+     * alanın data-testid'sinin sonunda UÇUŞ KİMLİĞİ var
+     * (ör. "...-PC2662:P:2026-09-20 07:45:00:15X1"). Alanları DOM sırasına
+     * güvenerek eşlemek yerine bu kimlikle eşliyoruz - sıralama değişse veya
+     * arada reklam kartı render edilse bile satırlar karışmıyor.
+     */
+    @Override
+    public List<FlightRecord> getFlightRecords() {
+        resultsWait.until(ExpectedConditions.visibilityOfElementLocated(
+                ResultsPageLocator.FLIGHT_DEPARTURE_TIMES));
+
+        List<FlightRecord> records = new ArrayList<>();
+        String prefix = ResultsPageLocator.DEPARTURE_TIME_TESTID_PREFIX;
+
+        for (WebElement departure : driver.findElements(ResultsPageLocator.FLIGHT_DEPARTURE_TIMES)) {
+            String testId = departure.getDomAttribute("data-testid");
+            if (testId == null || !testId.startsWith(prefix)) {
+                continue;
+            }
+            String flightId = testId.substring(prefix.length());
+
+            String price = attributeByTestId("flight-price-departure-main-price-" + flightId, "data-price");
+            if (price == null || price.isBlank()) {
+                continue;
+            }
+
+            records.add(new FlightRecord(
+                    airlineOf(flightId),
+                    trimOrNull(departure.getText()),
+                    textByTestId("flight-timeline-departure-arrival-text-" + flightId),
+                    textByTestId("flight-route-departure-duration-text-" + flightId),
+                    textByTestId("flight-route-departure-stop-info-" + flightId),
+                    Double.parseDouble(price)));
+        }
+        return records;
+    }
+
+    /** Havayolu adı logo <img> etiketinin alt metninde. */
+    private String airlineOf(String flightId) {
+        List<WebElement> imgs = driver.findElements(org.openqa.selenium.By.cssSelector(
+                "[data-testid=\"flight-airline-logo-departure-single-image-container-" + flightId + "\"] img"));
+        return imgs.isEmpty() ? null : trimOrNull(imgs.get(0).getDomAttribute("alt"));
+    }
+
+    private String textByTestId(String testId) {
+        List<WebElement> found = driver.findElements(ResultsPageLocator.byTestId(testId));
+        return found.isEmpty() ? null : trimOrNull(found.get(0).getText());
+    }
+
+    private String attributeByTestId(String testId, String attribute) {
+        List<WebElement> found = driver.findElements(ResultsPageLocator.byTestId(testId));
+        return found.isEmpty() ? null : found.get(0).getDomAttribute(attribute);
+    }
+
+    private static String trimOrNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /** Ekranda listelenen tüm uçuşların kalkış saatlerini LocalTime olarak döner. */

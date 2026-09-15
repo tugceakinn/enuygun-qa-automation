@@ -12,10 +12,16 @@
         <!-- İstanbul'un iki havalimanı var (IST + SAW); şehir bazlı aramada ikisi de listelenir -->
         <parameter name="originAirportCodes" value="IST,SAW"/>
         <parameter name="destinationAirportCodes" value="ESB"/>
+        <!-- Part 4: veri cikarimi icin ayri bir rota -->
+        <parameter name="scrapeOriginCity" value="İstanbul"/>
+        <parameter name="scrapeDestinationCity" value="Lefkoşa"/>
+        <parameter name="scrapeDepartureDate" value="2026-10-15"/>
+        <parameter name="scrapeReturnDate" value="2026-10-20"/>
         <classes>
             <class name="tests.FlightSearchTest"/>
             <class name="tests.FlightSortTest"/>
             <class name="tests.CriticalPathTest"/>
+            <class name="tests.DataScraperTest"/>
         </classes>
     </test>
     <test name="Flight Search Test - Firefox">
@@ -30,10 +36,16 @@
         <!-- İstanbul'un iki havalimanı var (IST + SAW); şehir bazlı aramada ikisi de listelenir -->
         <parameter name="originAirportCodes" value="IST,SAW"/>
         <parameter name="destinationAirportCodes" value="ESB"/>
+        <!-- Part 4: veri cikarimi icin ayri bir rota -->
+        <parameter name="scrapeOriginCity" value="İstanbul"/>
+        <parameter name="scrapeDestinationCity" value="Lefkoşa"/>
+        <parameter name="scrapeDepartureDate" value="2026-10-15"/>
+        <parameter name="scrapeReturnDate" value="2026-10-20"/>
         <classes>
             <class name="tests.FlightSearchTest"/>
             <class name="tests.FlightSortTest"/>
             <class name="tests.CriticalPathTest"/>
+            <class name="tests.DataScraperTest"/>
         </classes>
     </test>
 </suite>

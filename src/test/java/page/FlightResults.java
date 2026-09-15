@@ -1,5 +1,7 @@
 package page;
 
+import model.FlightRecord;
+
 import java.time.LocalTime;
 import java.util.List;
 
@@ -34,4 +36,11 @@ public interface FlightResults {
     List<String> getDisplayedDestinationCodes();
 
     int getDisplayedFlightCount();
+
+    /**
+     * Listelenen uçuşları yapılandırılmış kayıtlar olarak döner (Part 4 - veri
+     * çıkarımı). Her iki tasarım da aynı alanları üretir, böylece CSV çıktısı
+     * hangi varyantın geldiğine bağlı olarak değişmez.
+     */
+    List<FlightRecord> getFlightRecords();
 }

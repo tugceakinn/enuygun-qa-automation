@@ -38,6 +38,21 @@ public class ClassicResultsPageLocator {
             By.cssSelector("div.flight-item[data-flight-id] [data-testid='airportSummarySteps']");
     public static final By ROUTE_AIRPORT_ITEMS = By.cssSelector(".itemAirport");
 
+    // ---- Part 4: veri kazima icin ek alanlar ----
+    public static final By FLIGHT_ARRIVAL_TIMES =
+            By.cssSelector("div.flight-item[data-flight-id] [data-testid='arrivalTime']");
+    public static final By FLIGHT_DURATIONS =
+            By.cssSelector("div.flight-item[data-flight-id] [data-testid='departureFlightTime']");
+    /** "Direkt Uçuş" / "1 aktarma" bilgisi. */
+    public static final By FLIGHT_TRANSIT = By.cssSelector(".summary-transit");
+
+    /** Kart ici okumalar icin (kart bazli iterasyon). */
+    public static final By CARD_AIRLINE = By.cssSelector(".summary-marketing-airlines");
+    public static final By CARD_DEPARTURE_TIME = By.cssSelector("[data-testid='departureTime']");
+    public static final By CARD_ARRIVAL_TIME = By.cssSelector("[data-testid='arrivalTime']");
+    public static final By CARD_DURATION = By.cssSelector("[data-testid='departureFlightTime']");
+    public static final By CARD_PRICE = By.cssSelector("[data-testid='flightInfoPrice']");
+
     /** Fiyata göre artan sıralama butonu. */
     public static final By SORT_PRICE_ASC = By.cssSelector(".sort-buttons.search__filter_sort-PRICE_ASC");
 
