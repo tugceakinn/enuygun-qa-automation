@@ -157,8 +157,39 @@ Swagger Petstore v2 API üzerinde tam CRUD ve Negatif test döngüsü:
 
 ### Part 3: Yük & Performans Testi (k6) (`loadTest.js`)
 - **Amaç:** Enuygun uçuş arama modülünün yanıt sürelerini ve hata oranını ölçmek.
-- **Yapılandırma:** 1 Sanal Kullanıcı (VU) ile 5 saniyelik kontrollü yük.
-- **Metrikler:** Status 200 kontrolü, HTTP response time (`http_req_duration`), hata oranı (`http_req_failed`).
+- **Yapılandırma:** 1 Sanal Kullanıcı (VU), 5 saniye. Siteye gerçek yük bindirmemek için bilinçli olarak küçük tutuldu; amaç kapasite ölçmek değil, yanıt süresi ve hata oranını kontrollü biçimde gözlemlemek.
+
+#### Eşikler (thresholds)
+Yük testinin "geçti/kaldı" kriterleri. Eşik tanımlanmazsa k6 yalnızca sayı üretir, hiçbir şey doğrulamaz — assertion'ı olmayan bir test gibi.
+
+```js
+thresholds: {
+    http_req_failed:   ['rate<0.01'],    // hata oranı %1'in altında
+    http_req_duration: ['p(95)<2000'],   // isteklerin %95'i 2sn altında
+}
+```
+
+#### Sonuçlar
+
+| Metrik | Değer | Eşik | Sonuç |
+| :--- | ---: | :--- | :---: |
+| Toplam istek | 5 | — | — |
+| Başarılı kontrol oranı | %100 | — | ✅ |
+| Hata oranı (`http_req_failed`) | %0 | < %1 | ✅ |
+| Ortalama yanıt süresi | 96.4 ms | — | — |
+| Medyan | 85.4 ms | — | — |
+| p(95) | 143.1 ms | < 2000 ms | ✅ |
+| En yüksek | 157.0 ms | — | — |
+| İlk bayta kadar (`http_req_waiting`) ort. | 43.2 ms | — | — |
+
+Arama sayfası 1 kullanıcı altında sorunsuz yanıt veriyor; p(95) değeri eşiğin çok altında.
+
+#### Bu bölümde çıkan bulgu
+İlk koşuda **5 isteğin 5'i de başarısızdı** ve dönen yanıtlar yalnızca ~8 KB'tı (gerçek sayfa ~730 KB). Sebep: varsayılan k6 isteği gerçekçi istemci başlıkları göndermiyor ve site bu tür isteklere farklı yanıt veriyor.
+
+Bu yüzden teste iki şey eklendi:
+1. Gerçekçi `User-Agent`, `Accept` ve `Accept-Language` başlıkları — gerçek kullanıcı trafiğini taklit etmeyen bir yük testi yanıltıcı sayılar üretir.
+2. Sadece "HTTP 200 mü" değil, **"gerçek sonuç sayfası mı (>100 KB)"** kontrolü — çünkü bir hata/challenge sayfası da 200 dönebilir. Tek başına durum kodu kontrolü bu hatayı gizlerdi.
 
 ---
 
