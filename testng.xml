@@ -1,0 +1,37 @@
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="Enuygun UI Automation Suite">
+    <test name="Flight Search Test - Chrome">
+        <parameter name="browser" value="chrome"/>
+        <parameter name="originCity" value="İstanbul"/>
+        <parameter name="destinationCity" value="Ankara"/>
+        <parameter name="departureDate" value="2026-09-20"/>
+        <parameter name="returnDate" value="2026-09-25"/>
+        <parameter name="filterStartHour" value="10"/>
+        <parameter name="filterEndHour" value="18"/>
+        <parameter name="airlineName" value="Türk Hava Yolları"/>
+        <!-- İstanbul'un iki havalimanı var (IST + SAW); şehir bazlı aramada ikisi de listelenir -->
+        <parameter name="originAirportCodes" value="IST,SAW"/>
+        <parameter name="destinationAirportCodes" value="ESB"/>
+        <classes>
+            <class name="tests.FlightSearchTest"/>
+            <class name="tests.FlightSortTest"/>
+        </classes>
+    </test>
+    <test name="Flight Search Test - Firefox">
+        <parameter name="browser" value="firefox"/>
+        <parameter name="originCity" value="İstanbul"/>
+        <parameter name="destinationCity" value="Ankara"/>
+        <parameter name="departureDate" value="2026-09-20"/>
+        <parameter name="returnDate" value="2026-09-25"/>
+        <parameter name="filterStartHour" value="10"/>
+        <parameter name="filterEndHour" value="18"/>
+        <parameter name="airlineName" value="Türk Hava Yolları"/>
+        <!-- İstanbul'un iki havalimanı var (IST + SAW); şehir bazlı aramada ikisi de listelenir -->
+        <parameter name="originAirportCodes" value="IST,SAW"/>
+        <parameter name="destinationAirportCodes" value="ESB"/>
+        <classes>
+            <class name="tests.FlightSearchTest"/>
+            <class name="tests.FlightSortTest"/>
+        </classes>
+    </test>
+</suite>
