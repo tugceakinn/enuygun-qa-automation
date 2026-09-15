@@ -3,7 +3,6 @@ package page;
 import base.BasePage;
 import locator.ClassicResultsPageLocator;
 import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.interactions.Actions;
@@ -85,10 +84,12 @@ public class ClassicResultsPage extends BasePage implements FlightResults {
     /**
      * rc-slider handle'ını hedef dakikaya sürükler.
      *
-     * Handle gerçek bir element olduğu için dragAndDropBy ile merkezinden
-     * yakalayıp yatay piksel farkı kadar taşıyoruz; bu, yeni tasarımdaki
-     * native range input'a göre daha basit ama piksel hassasiyeti gerektirdiği
-     * için sonucu doğrulayıp bir kez daha deniyoruz.
+     * BUG (bulundu, canlı sitede doğrulandı): rc-slider, tek adımlı bir
+     * sürüklemeyi (clickAndHold -> TEK moveByOffset -> release, ör. Selenium'un
+     * dragAndDropBy'ı tam olarak bunu yapar) YOK SAYIYOR - handle hiç hareket
+     * etmiyor. rc-slider'ın kendi mantığı, gerçek bir kullanıcı sürüklemesindeki
+     * gibi ARDIŞIK mousemove olayları bekliyor. Bu yüzden hedefe TEK sıçrama
+     * yerine birden fazla küçük ara adımla ilerliyoruz.
      */
     private void dragHandleToMinutes(WebElement slider, WebElement handle, int targetMinutes) {
         for (int attempt = 0; attempt < 3; attempt++) {
@@ -110,7 +111,7 @@ public class ClassicResultsPage extends BasePage implements FlightResults {
             }
 
             scrollToElement(handle);
-            new Actions(driver).dragAndDropBy(handle, deltaX, 0).perform();
+            dragByWithIntermediateSteps(handle, deltaX);
         }
 
         int finalValue = readHandleMinutes(handle);
@@ -122,20 +123,34 @@ public class ClassicResultsPage extends BasePage implements FlightResults {
         }
     }
 
+    /**
+     * Bir elementi mevcut konumundan yatayda deltaX kadar, TEK sıçrama yerine
+     * birden fazla küçük ara adımla sürükler. rc-slider gibi sürükleme
+     * kütüphaneleri, gerçek kullanıcı hareketini taklit eden ardışık mousemove
+     * olayları olmadan değeri güncellemiyor (bkz. dragHandleToMinutes yorumu).
+     */
+    private void dragByWithIntermediateSteps(WebElement element, int deltaX) {
+        Actions actions = new Actions(driver);
+        actions.moveToElement(element).clickAndHold();
+
+        int steps = 10;
+        for (int i = 1; i <= steps; i++) {
+            int stepDelta = (deltaX * i / steps) - (deltaX * (i - 1) / steps);
+            actions.moveByOffset(stepDelta, 0);
+        }
+
+        actions.release().perform();
+    }
+
     /** Filtre uygulandıktan sonra listenin güncellenmesini bekler (doğrulamayı test yapar). */
     private void waitForResultsToReflectFilter(int fromHour, int toHour) {
-        try {
-            resultsWait.until(d -> {
-                List<LocalTime> times = getDisplayedDepartureTimes();
-                if (times.isEmpty()) {
-                    return false;
-                }
-                return times.stream().allMatch(t -> t.getHour() >= fromHour && t.getHour() <= toHour);
-            });
-        } catch (TimeoutException ignored) {
-            // Kasıtlı: asıl doğrulamayı testteki assertion yapsın ki hata mesajı
-            // "hangi uçuşlar aralık dışında" şeklinde anlamlı olsun.
-        }
+        PollingSupport.waitQuietly(resultsWait, d -> {
+            List<LocalTime> times = getDisplayedDepartureTimes();
+            if (times.isEmpty()) {
+                return false;
+            }
+            return times.stream().allMatch(t -> t.getHour() >= fromHour && t.getHour() <= toHour);
+        });
     }
 
     // ==================================================================
@@ -167,15 +182,11 @@ public class ClassicResultsPage extends BasePage implements FlightResults {
     }
 
     private void waitForAirlineFilterToApply(String airlineName) {
-        try {
-            resultsWait.until(d -> {
-                List<String> airlines = getDisplayedAirlines();
-                return !airlines.isEmpty()
-                        && airlines.stream().allMatch(a -> a.equalsIgnoreCase(airlineName));
-            });
-        } catch (TimeoutException ignored) {
-            // Doğrulamayı test katmanı yapsın.
-        }
+        PollingSupport.waitQuietly(resultsWait, d -> {
+            List<String> airlines = getDisplayedAirlines();
+            return !airlines.isEmpty()
+                    && airlines.stream().allMatch(a -> a.equalsIgnoreCase(airlineName));
+        });
     }
 
     @Override
@@ -187,14 +198,10 @@ public class ClassicResultsPage extends BasePage implements FlightResults {
                 ClassicResultsPageLocator.SORT_PRICE_ASC));
         clickSafely(sortButton);
 
-        try {
-            resultsWait.until(d -> {
-                List<Double> prices = getDisplayedPrices();
-                return !prices.isEmpty() && isAscending(prices);
-            });
-        } catch (TimeoutException ignored) {
-            // Doğrulamayı test katmanı yapsın.
-        }
+        PollingSupport.waitQuietly(resultsWait, d -> {
+            List<Double> prices = getDisplayedPrices();
+            return !prices.isEmpty() && isAscending(prices);
+        });
         return this;
     }
 

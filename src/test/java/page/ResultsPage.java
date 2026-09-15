@@ -4,7 +4,6 @@ import base.BasePage;
 import locator.ResultsPageLocator;
 import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.interactions.Actions;
@@ -68,35 +67,31 @@ public class ResultsPage extends BasePage implements FlightResults {
     /**
      * Filtre uygulandiktan sonra sonuc listesinin guncellenmesini bekler.
      *
-     * Onemli: burada TimeoutException'i bilincli olarak yutuyoruz. Amacimiz
-     * testi "gecirmek" degil; sadece asenkron render'in tamamlanmasina sans
-     * vermek. Liste gercekten filtreye uymuyorsa bekleme suresi dolar, metot
-     * sessizce doner ve testteki asil assertion calisir - boylece hata mesaji
-     * "hangi ucuslar araligin disinda kaldi" seklinde anlamli olur, teknik bir
-     * TimeoutException yerine.
+     * Onemli: PollingSupport.waitQuietly zaman asimini ve StaleElementReference
+     * durumunu sessizce yutuyor. Amacimiz testi "gecirmek" degil; sadece
+     * asenkron render'in tamamlanmasina sans vermek. Liste gercekten filtreye
+     * uymuyorsa bekleme suresi dolar, metot sessizce doner ve testteki asil
+     * assertion calisir - boylece hata mesaji "hangi ucuslar araligin disinda
+     * kaldi" seklinde anlamli olur, teknik bir exception yerine.
      */
     private void waitForResultsToReflectFilter(int fromHour, int toHour) {
-        try {
-            resultsWait.until(d -> {
-                List<WebElement> cells = d.findElements(ResultsPageLocator.FLIGHT_DEPARTURE_TIMES);
-                if (cells.isEmpty()) {
+        PollingSupport.waitQuietly(resultsWait, d -> {
+            List<WebElement> cells = d.findElements(ResultsPageLocator.FLIGHT_DEPARTURE_TIMES);
+            if (cells.isEmpty()) {
+                return false;
+            }
+            for (WebElement cell : cells) {
+                String text = cell.getText().trim();
+                if (text.isEmpty()) {
                     return false;
                 }
-                for (WebElement cell : cells) {
-                    String text = cell.getText().trim();
-                    if (text.isEmpty()) {
-                        return false;
-                    }
-                    int hour = LocalTime.parse(text, TIME_FORMAT).getHour();
-                    if (hour < fromHour || hour > toHour) {
-                        return false;
-                    }
+                int hour = LocalTime.parse(text, TIME_FORMAT).getHour();
+                if (hour < fromHour || hour > toHour) {
+                    return false;
                 }
-                return true;
-            });
-        } catch (TimeoutException ignored) {
-            // Kasitli: asil dogrulamayi test katmanindaki assertion yapsin.
-        }
+            }
+            return true;
+        });
     }
 
     private int readSliderValue(WebElement rangeInput) {
@@ -105,22 +100,35 @@ public class ResultsPage extends BasePage implements FlightResults {
     }
 
     /**
-     * BUG (bulundu): Selenium 3'te Actions.moveToElement(element, xOffset, yOffset)
-     * offsetleri elementin MERKEZİNE göreydi; Selenium 4'ün W3C Actions API'sinde
-     * ise bu offsetler elementin SOL-ÜST köşesine göre. Eski kod hâlâ merkeze göre
-     * hesaplıyordu ("offsetFromCenter"), bu yüzden thumb track'in solunda/ortasındaysa
-     * (küçük offset hatası) tıklama yine de thumb'ı yakalayabiliyordu, ama thumb en
-     * sağ uçtaysa (örn. saat filtresinin "bitiş" slider'ı max'ta başlıyor) hesaplanan
-     * nokta gerçek thumb'ın çok dışına düşüyor ve sürükleme hiçbir şey yapmıyordu
-     * (bu yüzden "başlangıç saati" filtresi çalışıyor ama "bitiş saati" hiç
-     * uygulanmıyordu, 23:59'da kalıyordu).
-     * Şimdi elementin SOL-ÜST köşesine göre gerçek piksel x konumunu kullanıyoruz,
-     * ve sürükleme sonrası gerçek değeri okuyup doğruluyoruz; tutmazsa bir kez daha
-     * (güncel konumdan) deniyoruz, hâlâ tutmazsa sessizce yanlış filtrelenmiş sonuçla
-     * devam etmek yerine net bir hata fırlatıyoruz.
+     * Slider'ı hedef değere sürükler.
+     *
+     * İKİ AYRI TUZAK VAR, ikisi de canlı sitede doğrulandı:
+     *
+     * 1) KOORDİNAT ÇERÇEVESİ: Selenium 4'ün W3C Actions API'sinde
+     *    moveToElement(element, xOffset, yOffset) offsetleri elementin
+     *    MERKEZİNE göredir (Selenium 3'teki JSON Wire Protocol'de sol-üst
+     *    köşeye göreydi). Bu input'ta pointer-events:none olduğu ve SADECE
+     *    ::-webkit-slider-thumb tıklanabilir olduğu için, yanlış çerçeveyle
+     *    hesaplanan nokta thumb'ın dışına düşüyor, tıklama "içinden geçiyor"
+     *    ve slider hiç kıpırdamıyor. Bu belirsizliğe hiç girmemek için
+     *    aşağıda offsetli moveToElement KULLANMIYORUZ: önce offsetsiz
+     *    moveToElement (= elementin merkezi, tartışmasız) sonra moveByOffset
+     *    (= pointer'ın mevcut konumuna göre) kullanıyoruz.
+     *
+     * 2) TEK SIÇRAMA YETMİYOR: Sürükleme tek bir moveByOffset ile hedefe
+     *    atlarsa, slider'ın DOM değeri doğru görünse bile sitenin filtreleme
+     *    mantığı TETİKLENMİYOR (liste filtrelenmemiş kalıyor). Gerçek bir
+     *    kullanıcı sürüklemesindeki gibi ARDIŞIK mousemove olayları gerekiyor,
+     *    bu yüzden hedefe 10 küçük adımda ilerliyoruz.
+     *
+     * (Daha önce burada "native setter ile programatik değer atama" şeklinde
+     * bir yedek yol vardı. O yol input.value'yu doğru değere getirdiği için
+     * doğrulama testi geçiyordu, ama filtrelemeyi hiç tetiklemediğinden
+     * "slider doğru görünüyor ama liste yanlış" gibi kafa karıştırıcı bir
+     * duruma yol açıyordu - yani hatayı düzeltmiyor, gizliyordu. Kaldırıldı.)
      */
     private void setSliderValue(WebElement rangeInput, int targetValue) {
-        for (int attempt = 0; attempt < 2; attempt++) {
+        for (int attempt = 0; attempt < 3; attempt++) {
             int min = Integer.parseInt(rangeInput.getDomAttribute("min"));
             int max = Integer.parseInt(rangeInput.getDomAttribute("max"));
             int current = readSliderValue(rangeInput);
@@ -130,67 +138,51 @@ public class ResultsPage extends BasePage implements FlightResults {
             }
 
             int trackWidth = rangeInput.getSize().getWidth();
-            int trackHeight = rangeInput.getSize().getHeight();
             double pxPerUnit = (double) (trackWidth - THUMB_WIDTH_PX) / (max - min);
 
+            // Thumb merkezlerinin, track'in SOL kenarına göre piksel konumu
             double currentThumbX = THUMB_WIDTH_PX / 2.0 + (current - min) * pxPerUnit;
             double targetThumbX = THUMB_WIDTH_PX / 2.0 + (targetValue - min) * pxPerUnit;
 
-            int startX = (int) Math.round(currentThumbX);
-            int targetX = (int) Math.round(targetThumbX);
-            int y = Math.max(1, trackHeight / 2);
+            // Pointer'ı elementin merkezinden alıp thumb'a taşıyacak offset
+            double centerX = trackWidth / 2.0;
+            int grabOffsetFromCenter = (int) Math.round(currentThumbX - centerX);
+            int dragDistance = (int) Math.round(targetThumbX - currentThumbX);
 
-            new Actions(driver)
-                    .moveToElement(rangeInput, startX, y)
-                    .clickAndHold()
-                    .moveToElement(rangeInput, targetX, y)
-                    .release()
-                    .perform();
+            dragThumb(rangeInput, grabOffsetFromCenter, dragDistance);
 
             if (readSliderValue(rangeInput) == targetValue) {
                 return;
             }
         }
 
-        // Gercek surukleme tutmadi. Native range input'lar piksel hassasiyetine
-        // cok bagimli (thumb genisligi, zoom, responsive track genisligi); bu
-        // yuzden deterministik bir yedek yol kullaniyoruz.
-        setValueViaNativeSetter(rangeInput, targetValue);
-
         int finalValue = readSliderValue(rangeInput);
-        if (finalValue != targetValue) {
-            throw new IllegalStateException(
-                    "Slider hedef değere ulaşmadı: istenen=" + targetValue + ", gerçek=" + finalValue +
-                    ". Hem sürükleme hem de programatik değer atama başarısız oldu; " +
-                    "slider locator'ı yanlış elementi işaret ediyor olabilir.");
-        }
+        throw new IllegalStateException(
+                "Slider hedef değere ulaşmadı: istenen=" + targetValue + ", gerçek=" + finalValue +
+                ". Sürükleme koordinat hesaplaması veya track genişliği hatalı olabilir.");
     }
 
     /**
-     * Slider degerini React ile uyumlu sekilde programatik olarak ayarlar.
+     * Thumb'ı yakalayıp yatayda dragDistance kadar, TEK sıçrama yerine birden
+     * fazla küçük ara adımla sürükler.
      *
-     * Neden bu kadar dolayli: React, kontrollu bir input'un ORNEK (instance)
-     * uzerindeki "value" setter'ini kendi tracker'i ile eziyor. Dolayisiyla
-     * klasik element.value = x atamasi React tarafindan "deger degismedi"
-     * olarak gorulur ve ardindan gonderilen input event'i yok sayilir - slider
-     * ekranda eski yerinde kalir.
-     *
-     * Cozum: PROTOTYPE uzerindeki orijinal (native) setter'i dogrudan cagirmak.
-     * Bu, React'in instance-level tracker'ini atlar; sonrasinda bubbles=true
-     * ile gonderilen 'input' ve 'change' event'leri React'in state'i gercekten
-     * guncellemesini saglar.
+     * Offsetli moveToElement bilinçli olarak kullanılmıyor (bkz. setSliderValue
+     * yorumu, 1. tuzak): önce offsetsiz moveToElement ile elementin merkezine
+     * gidiyor, sonra moveByOffset ile pointer'ı thumb'ın üstüne taşıyoruz.
      */
-    private void setValueViaNativeSetter(WebElement rangeInput, int targetValue) {
-        JavascriptExecutor js = (JavascriptExecutor) driver;
-        js.executeScript(
-                "const input = arguments[0];" +
-                "const value = arguments[1];" +
-                "const nativeSetter = Object.getOwnPropertyDescriptor(" +
-                "    window.HTMLInputElement.prototype, 'value').set;" +
-                "nativeSetter.call(input, value);" +
-                "input.dispatchEvent(new Event('input',  { bubbles: true }));" +
-                "input.dispatchEvent(new Event('change', { bubbles: true }));",
-                rangeInput, String.valueOf(targetValue));
+    private void dragThumb(WebElement rangeInput, int grabOffsetFromCenter, int dragDistance) {
+        Actions actions = new Actions(driver);
+        actions.moveToElement(rangeInput)
+                .moveByOffset(grabOffsetFromCenter, 0)
+                .clickAndHold();
+
+        int steps = 10;
+        for (int i = 1; i <= steps; i++) {
+            int stepDelta = (dragDistance * i / steps) - (dragDistance * (i - 1) / steps);
+            actions.moveByOffset(stepDelta, 0);
+        }
+
+        actions.release().perform();
     }
 
     // ==================================================================
@@ -272,24 +264,19 @@ public class ResultsPage extends BasePage implements FlightResults {
 
     /** Filtre uygulandiktan sonra listenin gercekten guncellenmesini bekler. */
     private void waitForAirlineFilterToApply(String airlineName) {
-        try {
-            resultsWait.until(d -> {
-                List<WebElement> logos = d.findElements(ResultsPageLocator.FLIGHT_AIRLINE_LOGOS);
-                if (logos.isEmpty()) {
+        PollingSupport.waitQuietly(resultsWait, d -> {
+            List<WebElement> logos = d.findElements(ResultsPageLocator.FLIGHT_AIRLINE_LOGOS);
+            if (logos.isEmpty()) {
+                return false;
+            }
+            for (WebElement logo : logos) {
+                String alt = logo.getDomAttribute("alt");
+                if (alt == null || !alt.trim().equalsIgnoreCase(airlineName)) {
                     return false;
                 }
-                for (WebElement logo : logos) {
-                    String alt = logo.getDomAttribute("alt");
-                    if (alt == null || !alt.trim().equalsIgnoreCase(airlineName)) {
-                        return false;
-                    }
-                }
-                return true;
-            });
-        } catch (TimeoutException ignored) {
-            // Kasitli: dogrulamayi testteki assertion yapsin ki hata mesaji
-            // "hangi havayollari kalmis" seklinde anlamli olsun.
-        }
+            }
+            return true;
+        });
     }
 
     /** Sonuclari fiyata gore artan siralar ("En ucuz"). */
@@ -300,14 +287,10 @@ public class ResultsPage extends BasePage implements FlightResults {
                 ResultsPageLocator.SORT_CHEAPEST_BUTTON)).click();
 
         // Siralama asenkron; liste gercekten sirali hale gelene kadar bekle.
-        try {
-            resultsWait.until(d -> {
-                List<Double> now = getDisplayedPrices();
-                return !now.isEmpty() && isAscending(now);
-            });
-        } catch (TimeoutException ignored) {
-            // Dogrulamayi test katmani yapsin.
-        }
+        PollingSupport.waitQuietly(resultsWait, d -> {
+            List<Double> now = getDisplayedPrices();
+            return !now.isEmpty() && isAscending(now);
+        });
         return this;
     }
 
