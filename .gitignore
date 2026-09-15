@@ -49,3 +49,6 @@ screenshots/
 
 # Maven ciktisi (zaten yukarida var ama netlik icin)
 target/
+
+# Claude tarafindan olusturulan ciktilar (proje dosyasi degil)
+Claude outputs/
