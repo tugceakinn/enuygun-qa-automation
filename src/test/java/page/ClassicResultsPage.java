@@ -409,29 +409,61 @@ public class ClassicResultsPage extends BasePage implements FlightResults {
     /**
      * Filtre akordeonunu açar - ZATEN AÇIKSA DOKUNMAZ.
      *
-     * BUG (bulundu): Bu metot önce durumu kontrol etmeden körlemesine tıklıyordu.
-     * Akordeon o anda zaten açıksa tıklama onu KAPATIYOR, ardından beklenen
-     * slider/checkbox elemanları hiç görünmüyor ve test "filtre paneli açılmadı"
-     * diye zaman aşımına uğruyordu. Panelin bazen açık gelmesi tarayıcı ve
-     * zamanlamaya göre değiştiği için hata yalnızca Firefox'ta ortaya çıkmıştı -
-     * klasik bir "kör toggle" hatası.
+     * İki ayrı bug burada birleşti:
+     *
+     * 1) KÖR TOGGLE: Metot önce durumu kontrol etmeden tıklıyordu. Akordeon zaten
+     *    açıksa tıklama onu KAPATIYOR, sonra beklenen elemanlar hiç görünmüyordu.
+     *
+     * 2) TIKLAMA KAYDI TUTMUYOR (özellikle Firefox): Tek bir tıklama denemesi
+     *    yeterli olmayabiliyor. Akordeon kapalıyken içerik DOM'a hiç render
+     *    edilmediği için, açılmazsa aranan checkbox/slider "yok" gibi görünüyor
+     *    ve hata yanıltıcı oluyordu.
+     *
+     * Bu yüzden kademeli deniyoruz: önce başlığa normal tıklama, sonra JS ile
+     * tıklama, sonra açma/kapama ikonuna tıklama. Her denemeden sonra panelin
+     * gerçekten açıldığı doğrulanıyor.
      *
      * Bootstrap collapse kullanıldığı için açık durumun işareti net:
      * kapalıyken class="collapse", açıkken class="collapse show".
      */
     private void openAccordion(org.openqa.selenium.By header) {
-        WebElement headerEl = resultsWait.until(ExpectedConditions.presenceOfElementLocated(header));
-        scrollToElement(headerEl);
+        resultsWait.until(ExpectedConditions.presenceOfElementLocated(header));
 
-        if (isAccordionOpen(headerEl)) {
-            return;
+        for (int attempt = 0; attempt < 3; attempt++) {
+            WebElement headerEl = driver.findElement(header);
+            scrollToElement(headerEl);
+
+            if (isAccordionOpen(headerEl)) {
+                return;
+            }
+
+            switch (attempt) {
+                case 0 -> clickSafely(headerEl);
+                case 1 -> ((JavascriptExecutor) driver).executeScript("arguments[0].click();", headerEl);
+                default -> clickExpandIcon(headerEl);
+            }
+
+            try {
+                new WebDriverWait(driver, Duration.ofSeconds(6))
+                        .until(d -> isAccordionOpen(d.findElement(header)));
+                return;
+            } catch (TimeoutException | StaleElementReferenceException retryable) {
+                // Bir sonraki stratejiyle tekrar dene.
+            }
         }
 
-        clickSafely(headerEl);
+        throw new IllegalStateException(
+                "Filtre akordeonu (" + header + ") üç farklı tıklama denemesine rağmen açılmadı. " +
+                "Panel kapalıyken içeriği DOM'a render edilmediği için içindeki filtrelere ulaşılamıyor.");
+    }
 
-        // Açılma animasyonu bitene kadar bekle; aksi halde içerideki elemanları
-        // henüz render olmadan aramaya başlıyoruz.
-        resultsWait.until(d -> isAccordionOpen(d.findElement(header)));
+    /** Başlığın sağındaki aç/kapa ikonuna tıklar (son çare). */
+    private void clickExpandIcon(WebElement headerEl) {
+        List<WebElement> icons = headerEl.findElements(
+                org.openqa.selenium.By.cssSelector("i[class*='expand'], i[class*='ei-']"));
+        if (!icons.isEmpty()) {
+            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", icons.get(0));
+        }
     }
 
     private boolean isAccordionOpen(WebElement headerEl) {
