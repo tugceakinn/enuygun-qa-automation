@@ -81,7 +81,7 @@ public class CheckoutPage extends BasePage {
             WebElement input = checkoutWait.until(
                     ExpectedConditions.elementToBeClickable(locator));
             scrollToElement(input);
-            input.clear();
+            clearField(input);
             input.sendKeys(text);
 
             // Sadece autocomplete'li alanda öneri kutusunu kapat. Maskeli alanlarda
@@ -101,6 +101,40 @@ public class CheckoutPage extends BasePage {
                 "'" + fieldName + "' alanına yazılamadı. İstenen=\"" + text +
                 "\", alanda kalan=\"" + actual + "\". Alana bağlı bir autocomplete, " +
                 "mask veya doğrulama widget'ı değeri geri almış olabilir.");
+    }
+
+    /**
+     * Alanı gerçekten boşaltır.
+     *
+     * BUG (bulundu, hata mesajından teşhis edildi): Telefon alanında
+     * {@code clear()} Firefox'ta işe yaramıyordu - alana bağlı input mask
+     * değeri (Türk cep numaraları 5 ile başladığı için muhtemelen bir "5" ön eki)
+     * hemen geri koyuyor. Bizim yazdığımız 10 hane bunun ARKASINA ekleniyor,
+     * maxlength son haneyi kesiyordu:
+     *
+     *   istenen  5551112233
+     *   oluşan   5 + 555111223(3) -> "555 511 1223"
+     *
+     * Bu yüzden clear() yetmiyorsa klavyeyle (END + BACKSPACE) gerçekten
+     * boşaltıyoruz.
+     */
+    private void clearField(WebElement input) {
+        input.clear();
+        if (isEmpty(input)) {
+            return;
+        }
+
+        input.click();
+        input.sendKeys(Keys.END);
+        // Alanda kalan karakter sayısından biraz fazlasını sil (mask karakterleri dahil).
+        for (int i = 0; i < 25 && !isEmpty(input); i++) {
+            input.sendKeys(Keys.BACK_SPACE);
+        }
+    }
+
+    private static boolean isEmpty(WebElement input) {
+        String value = input.getDomProperty("value");
+        return value == null || value.isEmpty();
     }
 
     /**
