@@ -55,8 +55,10 @@ public class CheckoutPage extends BasePage {
     }
 
     public CheckoutPage fillContactInfo(String email, String phone) {
-        typeAndVerify(CheckoutPageLocator.CONTACT_EMAIL_INPUT, email, "iletişim e-postası");
-        typeAndVerify(CheckoutPageLocator.CONTACT_PHONE_INPUT, phone, "iletişim telefonu");
+        // E-posta alanina jQuery UI autocomplete bagli -> oneri kutusunu kapatmak gerekiyor.
+        typeAndVerify(CheckoutPageLocator.CONTACT_EMAIL_INPUT, email, "iletişim e-postası", true);
+        // Telefon alaninda input MASK var -> ESCAPE gonderilmemeli (mask'i sifirliyor).
+        typeAndVerify(CheckoutPageLocator.CONTACT_PHONE_INPUT, phone, "iletişim telefonu", false);
         return this;
     }
 
@@ -73,7 +75,8 @@ public class CheckoutPage extends BasePage {
      * alanın GERÇEK değerini (DOM property) okuyup doğruluyoruz. Sessizce boş
      * geçmek yerine, hangi alanın yazılamadığını söyleyen net bir hata veriyoruz.
      */
-    private void typeAndVerify(org.openqa.selenium.By locator, String text, String fieldName) {
+    private void typeAndVerify(org.openqa.selenium.By locator, String text, String fieldName,
+                               boolean dismissSuggestions) {
         for (int attempt = 0; attempt < 2; attempt++) {
             WebElement input = checkoutWait.until(
                     ExpectedConditions.elementToBeClickable(locator));
@@ -81,10 +84,14 @@ public class CheckoutPage extends BasePage {
             input.clear();
             input.sendKeys(text);
 
-            // Autocomplete öneri kutusunu kapat, sonra odağı bırak ki değer işlensin.
-            input.sendKeys(Keys.ESCAPE);
+            // Sadece autocomplete'li alanda öneri kutusunu kapat. Maskeli alanlarda
+            // (telefon) ESCAPE mask tarafından "geri al" olarak yorumlanıp alanı
+            // temizliyor - bu yüzden koşullu.
+            if (dismissSuggestions) {
+                input.sendKeys(Keys.ESCAPE);
+            }
 
-            if (text.equals(input.getDomProperty("value"))) {
+            if (matches(text, input.getDomProperty("value"))) {
                 return;
             }
         }
@@ -92,8 +99,33 @@ public class CheckoutPage extends BasePage {
         String actual = driver.findElement(locator).getDomProperty("value");
         throw new IllegalStateException(
                 "'" + fieldName + "' alanına yazılamadı. İstenen=\"" + text +
-                "\", alanda kalan=\"" + actual + "\". Alana bağlı bir autocomplete " +
-                "veya doğrulama widget'ı değeri geri almış olabilir.");
+                "\", alanda kalan=\"" + actual + "\". Alana bağlı bir autocomplete, " +
+                "mask veya doğrulama widget'ı değeri geri almış olabilir.");
+    }
+
+    /**
+     * Girilen değerin alana işlendiğini doğrular.
+     *
+     * Maskeli alanlar değeri BİÇİMLENDİRİR: "5551112233" yazdığımızda alanda
+     * "(555) 111 22 33" durabilir. Bu yüzden yalnızca rakamlardan oluşan
+     * değerleri rakam bazında karşılaştırıyoruz - aksi halde alan doğru
+     * doldurulmuş olmasına rağmen doğrulama başarısız olurdu.
+     */
+    private static boolean matches(String expected, String actual) {
+        if (actual == null) {
+            return false;
+        }
+        if (expected.equals(actual)) {
+            return true;
+        }
+        if (!expected.isEmpty() && expected.chars().allMatch(Character::isDigit)) {
+            return digitsOnly(expected).equals(digitsOnly(actual));
+        }
+        return false;
+    }
+
+    private static String digitsOnly(String value) {
+        return value.replaceAll("\\D", "");
     }
 
     /**

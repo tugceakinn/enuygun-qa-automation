@@ -56,7 +56,7 @@ public class CriticalPathTest extends BaseTest {
         // o durumda çerezleri temizleyip kovanın yeniden atanmasını deniyoruz.
         ResultsVariant variant;
         try {
-            ResultsVariant.pinTo(getDriver(), ResultsVariant.CLASSIC, 4, Duration.ofSeconds(40));
+            ResultsVariant.pinTo(getDriver(), ResultsVariant.CLASSIC, 8, Duration.ofSeconds(40));
             variant = ResultsVariant.CLASSIC;
         } catch (IllegalStateException e) {
             throw new SkipException(
