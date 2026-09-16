@@ -9,6 +9,23 @@ public class HomePageLocator {
     // Tıklanabilir olan, onu saran <label data-testid='search-round-trip-label'> elemanı.
     public static final By ROUND_TRIP_RADIO = By.cssSelector("[data-testid='search-round-trip-label']");
 
+    /**
+     * "Bu tarihler için otelleri de listele" checkbox'ı.
+     *
+     * DİKKAT: Bu kutu sitede BAZEN VARSAYILAN OLARAK İŞARETLİ geliyor ve
+     * işaretliyken arama otel akışına sapabiliyor (sonuç sayfası yerine
+     * "... Otelleri" sayfası açılıyor). Uçuş testleri için mutlaka kaldırılmalı.
+     *
+     * id dinamik ("checkbox-showListHotel-_R_ejr6..."), bu yüzden ön ek eşlemesi
+     * kullanıyoruz. data-testid KULLANILAMAZ: site bu kutuya
+     * "flight-oneWayCheckbox-unchecked-input" testid'sini veriyor - yani
+     * gerçekte tek yön kutusuyla ilgisi olmayan, yanıltıcı bir testid.
+     */
+    public static final By HOTEL_LISTING_CHECKBOX =
+            By.cssSelector("input[id^='checkbox-showListHotel']");
+    public static final By HOTEL_LISTING_LABEL =
+            By.cssSelector("label[for^='checkbox-showListHotel']");
+
     // Nereden / Nereye kutuları
     public static final By ORIGIN_CONTAINER = By.cssSelector("[data-testid='endesign-flight-origin-autosuggestion']");
     public static final By ORIGIN_INPUT = By.cssSelector("[data-testid='endesign-flight-origin-autosuggestion-input']");

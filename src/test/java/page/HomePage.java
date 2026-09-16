@@ -207,6 +207,39 @@ public class HomePage extends BasePage {
     }
 
     public void clickSearchButton() {
+        ensureHotelListingUnchecked();
         click(HomePageLocator.SEARCH_BUTTON);
+    }
+
+    /**
+     * "Bu tarihler için otelleri de listele" kutusunun işaretini kaldırır.
+     *
+     * BUG (bulundu, hata dökümünden teşhis edildi): Bu kutu sitede varsayılan
+     * olarak İŞARETLİ gelebiliyor. İşaretliyken arama uçuş sonuç sayfası yerine
+     * otel sayfasına sapıyordu - hata dökümünde açılan sayfanın "Ankara Otelleri"
+     * olduğu görüldü ve varyant tespiti doğal olarak hiçbir uçuş işareti bulamadı.
+     *
+     * Kutu her varyantta bulunmuyor; yoksa sessizce geçiyoruz (bu, bir hatayı
+     * yutmak değil - kutunun yokluğu zaten istediğimiz durum).
+     */
+    private void ensureHotelListingUnchecked() {
+        List<WebElement> checkboxes = driver.findElements(HomePageLocator.HOTEL_LISTING_CHECKBOX);
+        if (checkboxes.isEmpty() || !checkboxes.get(0).isSelected()) {
+            return;
+        }
+
+        // input görsel olarak gizli olabildiği için label üzerinden tıklıyoruz.
+        List<WebElement> labels = driver.findElements(HomePageLocator.HOTEL_LISTING_LABEL);
+        if (labels.isEmpty()) {
+            throw new IllegalStateException(
+                    "'Otelleri de listele' kutusu işaretli ama kaldırmak için label bulunamadı.");
+        }
+        scrollToElement(labels.get(0));
+        labels.get(0).click();
+
+        wait.until(d -> {
+            List<WebElement> boxes = d.findElements(HomePageLocator.HOTEL_LISTING_CHECKBOX);
+            return boxes.isEmpty() || !boxes.get(0).isSelected();
+        });
     }
 }
