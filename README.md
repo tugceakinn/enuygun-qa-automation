@@ -203,6 +203,23 @@ Bu yüzden teste iki şey eklendi:
 
 ---
 
+## 🔍 Araç Seçimi Üzerine Not
+
+Ödevde "Python or Java + Selenium would be preferable" denildiği için **Java + Selenium** tercih edildi.
+
+Proje boyunca karşılaşılan hataların bir kısmı siteye özgüydü (A/B testi, maskeli alanlar, yanıltıcı `data-testid`'ler) ve hangi araçla çalışılsa yaşanırdı. Ancak bir kısmı **doğrudan Selenium'un çalışma modelinden** kaynaklandı:
+
+| Karşılaşılan sorun | Playwright'ta karşılığı |
+| :--- | :--- |
+| Liste yeniden render olunca element referansının kopması (`StaleElementReferenceException`) | Locator'lar tembeldir, her aksiyonda yeniden çözülür — bu hata sınıfı yoktur |
+| `clear()` maskeli alanı boşaltamıyor | `fill()` alanı temizleyip yazar |
+| Element hazır değilken yapılan tıklamalar | Yerleşik actionability kontrolü |
+| Hata anını yeniden üretememe | Trace viewer / video yerleşik |
+
+Gerçek bir projede bu maliyet ekiple konuşulmaya değer bir konudur. Bu ödevde belirtilen tercihe uyuldu; yaşanan sorunlar ve çözümleri yukarıdaki bölümlerde belgelendi.
+
+---
+
 ## 🚀 Testlerin Çalıştırılması
 
 ### 1. UI Testlerini Çalıştırma (Maven & TestNG)
