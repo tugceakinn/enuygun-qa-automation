@@ -81,6 +81,12 @@ public class CheckoutPage extends BasePage {
             WebElement input = checkoutWait.until(
                     ExpectedConditions.elementToBeClickable(locator));
             scrollToElement(input);
+
+            // SIRA ÖNEMLİ: önce odaklan, sonra temizle, EN SON oku.
+            // Mask, alana odaklanıldığında ön ekini ekliyor. Eğer değeri
+            // odaklanmadan önce okursak "alan boş" görüp tamamını yazıyoruz;
+            // sendKeys odağı verdiği anda mask ön eki ekliyor ve haneler kayıyor.
+            input.click();
             clearField(input);
             input.sendKeys(remainingToType(input, text));
 
@@ -106,48 +112,45 @@ public class CheckoutPage extends BasePage {
     /**
      * Alanı gerçekten boşaltır.
      *
-     * BUG (bulundu, hata mesajından teşhis edildi): Telefon alanında
-     * {@code clear()} Firefox'ta işe yaramıyordu - alana bağlı input mask
-     * değeri (Türk cep numaraları 5 ile başladığı için muhtemelen bir "5" ön eki)
-     * hemen geri koyuyor. Bizim yazdığımız 10 hane bunun ARKASINA ekleniyor,
-     * maxlength son haneyi kesiyordu:
+     * BUG (bulundu, üç koşuda aynı imzayla): Telefon alanına bağlı input mask,
+     * {@code clear()} ve tek tek BACKSPACE denemelerinden sonra bile bir "5" ön
+     * ekini geri koyuyor (Türk cep numaraları 5 ile başlıyor). Sonuçta yazdığımız
+     * 10 hane onun arkasına ekleniyor ve maxlength sonuncuyu kesiyordu:
      *
      *   istenen  5551112233
-     *   oluşan   5 + 555111223(3) -> "555 511 1223"
+     *   oluşan   5 + 555111223(3)  ->  "555 511 1223"
      *
-     * Bu yüzden clear() yetmiyorsa klavyeyle (END + BACKSPACE) gerçekten
-     * boşaltıyoruz.
+     * Bu yüzden önce TÜMÜNÜ SEÇ + SİL yöntemini kullanıyoruz: seçili içeriğin
+     * üzerine yazmak, mask'ın karakter karakter araya girmesine fırsat vermiyor.
+     * Tutmazsa clear(), o da tutmazsa klavyeyle silme deneniyor.
      */
     private void clearField(WebElement input) {
+        // 1) Tümünü seç + sil (en güvenilir yöntem)
+        input.sendKeys(Keys.chord(selectAllModifier(), "a"));
+        input.sendKeys(Keys.DELETE);
+        if (isEmpty(input)) {
+            return;
+        }
+
+        // 2) Standart clear()
         input.clear();
         if (isEmpty(input)) {
             return;
         }
 
-        input.click();
+        // 3) Klavyeyle sil
         input.sendKeys(Keys.END);
-        // Alanda kalan karakter sayısından biraz fazlasını sil (mask karakterleri dahil).
         for (int i = 0; i < 25 && !isEmpty(input); i++) {
             input.sendKeys(Keys.BACK_SPACE);
         }
     }
 
-    /**
-     * Alanda ZATEN bulunan kısmı atlayarak yazılması gereken kalanı döner.
-     *
-     * BUG (bulundu, iki koşuda da aynı imzayla): Telefon alanındaki input mask,
-     * alanı boşaltma girişimlerinden sonra bile bir "5" ön eki geri koyuyor
-     * (Türk cep numaraları 5 ile başlıyor). Tüm numarayı yazınca haneler bir
-     * kayıyor ve maxlength sonuncuyu kesiyordu:
-     *
-     *   istenen  5551112233
-     *   oluşan   5 + 555111223(3)  ->  "555 511 1223"
-     *
-     * clearField ile zorla boşaltmayı denedik; mask ön eki her seferinde geri
-     * koyduğu için bu güvenilir olmadı. Bu yüzden alanla SAVAŞMAK yerine ona
-     * UYUM SAĞLIYORUZ: alanda kalan rakamlar hedefin başlangıcıyla eşleşiyorsa,
-     * yalnızca kalan kısmı yazıyoruz. Alan gerçekten boşsa tamamı yazılır.
-     */
+    /** macOS'ta Command, diğerlerinde Control. */
+    private static Keys selectAllModifier() {
+        String os = System.getProperty("os.name", "").toLowerCase();
+        return os.contains("mac") ? Keys.COMMAND : Keys.CONTROL;
+    }
+
     private static String remainingToType(WebElement input, String text) {
         String current = input.getDomProperty("value");
         if (current == null || current.isEmpty()) {
