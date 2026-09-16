@@ -2,7 +2,9 @@ package page;
 
 import base.BasePage;
 import locator.CheckoutPageLocator;
+import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -53,9 +55,45 @@ public class CheckoutPage extends BasePage {
     }
 
     public CheckoutPage fillContactInfo(String email, String phone) {
-        writeText(CheckoutPageLocator.CONTACT_EMAIL_INPUT, email);
-        writeText(CheckoutPageLocator.CONTACT_PHONE_INPUT, phone);
+        typeAndVerify(CheckoutPageLocator.CONTACT_EMAIL_INPUT, email, "iletişim e-postası");
+        typeAndVerify(CheckoutPageLocator.CONTACT_PHONE_INPUT, phone, "iletişim telefonu");
         return this;
+    }
+
+    /**
+     * Bir alana yazar ve YAZILDIĞINI DOĞRULAR; tutmazsa bir kez daha dener.
+     *
+     * BUG (bulundu): İletişim e-postası alanı Firefox'ta boş kalıyordu (Chrome'da
+     * sorun yoktu). Sebep, alana bağlı jQuery UI autocomplete widget'ı:
+     * alan {@code class="... ui-autocomplete-input"} taşıyor ve yazarken açılan
+     * öneri kutusu, odak kaybında değeri geri alabiliyor. Ad/soyad alanlarında
+     * bu widget olmadığı için onlar sorunsuz yazılıyordu.
+     *
+     * Bu yüzden yazdıktan sonra ESCAPE ile öneri kutusunu kapatıyor, sonra
+     * alanın GERÇEK değerini (DOM property) okuyup doğruluyoruz. Sessizce boş
+     * geçmek yerine, hangi alanın yazılamadığını söyleyen net bir hata veriyoruz.
+     */
+    private void typeAndVerify(org.openqa.selenium.By locator, String text, String fieldName) {
+        for (int attempt = 0; attempt < 2; attempt++) {
+            WebElement input = checkoutWait.until(
+                    ExpectedConditions.elementToBeClickable(locator));
+            scrollToElement(input);
+            input.clear();
+            input.sendKeys(text);
+
+            // Autocomplete öneri kutusunu kapat, sonra odağı bırak ki değer işlensin.
+            input.sendKeys(Keys.ESCAPE);
+
+            if (text.equals(input.getDomProperty("value"))) {
+                return;
+            }
+        }
+
+        String actual = driver.findElement(locator).getDomProperty("value");
+        throw new IllegalStateException(
+                "'" + fieldName + "' alanına yazılamadı. İstenen=\"" + text +
+                "\", alanda kalan=\"" + actual + "\". Alana bağlı bir autocomplete " +
+                "veya doğrulama widget'ı değeri geri almış olabilir.");
     }
 
     /**
