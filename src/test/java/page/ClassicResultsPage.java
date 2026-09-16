@@ -3,6 +3,10 @@ package page;
 import base.BasePage;
 import locator.ClassicResultsPageLocator;
 import model.FlightRecord;
+import org.openqa.selenium.By;
+import org.openqa.selenium.ElementNotInteractableException;
+import org.openqa.selenium.StaleElementReferenceException;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
@@ -330,9 +334,9 @@ public class ClassicResultsPage extends BasePage implements FlightResults {
      */
     public CheckoutPage selectFirstDepartureAndReturnFlight() {
         // 1) Gidiş uçuşunu seç
-        WebElement departureList = resultsWait.until(ExpectedConditions.visibilityOfElementLocated(
+        resultsWait.until(ExpectedConditions.visibilityOfElementLocated(
                 ClassicResultsPageLocator.DEPARTURE_FLIGHT_LIST));
-        clickFirstSelectButtonIn(departureList, "gidiş");
+        clickFirstSelectButtonIn(ClassicResultsPageLocator.DEPARTURE_FLIGHT_LIST, "gidiş");
 
         // 2) Açılan paketten "Seç ve İlerle"
         WebElement departurePackage = resultsWait.until(ExpectedConditions.visibilityOfElementLocated(
@@ -342,9 +346,9 @@ public class ClassicResultsPage extends BasePage implements FlightResults {
         clickSafely(proceed);
 
         // 3) Dönüş listesi görünür olunca ilk dönüş uçuşunu seç
-        WebElement returnList = resultsWait.until(ExpectedConditions.visibilityOfElementLocated(
+        resultsWait.until(ExpectedConditions.visibilityOfElementLocated(
                 ClassicResultsPageLocator.RETURN_FLIGHT_LIST));
-        clickFirstSelectButtonIn(returnList, "dönüş");
+        clickFirstSelectButtonIn(ClassicResultsPageLocator.RETURN_FLIGHT_LIST, "dönüş");
 
         // 4) Dönüş paketine tıkla -> rezervasyon sayfası
         WebElement returnPackage = resultsWait.until(d -> {
@@ -358,16 +362,43 @@ public class ClassicResultsPage extends BasePage implements FlightResults {
         return new CheckoutPage(driver).waitUntilLoaded();
     }
 
-    private void clickFirstSelectButtonIn(WebElement list, String leg) {
-        List<WebElement> buttons = list.findElements(ClassicResultsPageLocator.SELECT_FLIGHT_BUTTON);
-        if (buttons.isEmpty()) {
-            throw new IllegalStateException(
-                    leg + " listesinde tıklanabilir 'Seç' butonu bulunamadı. " +
-                    "Liste boş olabilir (filtre çok dar) veya locator değişmiş olabilir.");
+    /**
+     * Verilen listedeki ilk "Seç" butonuna tıklar ve paket panelinin AÇILDIĞINI
+     * doğrular; açılmazsa elementi yeniden bulup tekrar dener.
+     *
+     * Neden yeniden bulma gerekiyor: sonuç listesi arka planda yeniden render
+     * oluyor (fiyat güncellemeleri, "haftanın en ucuz bileti" gibi rozetler
+     * sonradan ekleniyor). Bu sırada elde tuttuğumuz buton referansı kopuyor
+     * ve tıklama sessizce hiçbir şey yapmıyor.
+     */
+    private void clickFirstSelectButtonIn(By listLocator, String leg) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                WebElement list = driver.findElement(listLocator);
+                List<WebElement> buttons = list.findElements(ClassicResultsPageLocator.SELECT_FLIGHT_BUTTON);
+                if (buttons.isEmpty()) {
+                    throw new IllegalStateException(
+                            leg + " listesinde tıklanabilir 'Seç' butonu bulunamadı. " +
+                            "Liste boş olabilir (filtre çok dar) veya locator değişmiş olabilir.");
+                }
+
+                WebElement button = buttons.get(0);
+                scrollToElement(button);
+                clickSafely(button);
+
+                // Paket paneli gerçekten açıldı mı? Açılmadıysa tıklama boşa gitmiştir.
+                new WebDriverWait(driver, Duration.ofSeconds(10)).until(
+                        ExpectedConditions.visibilityOfElementLocated(
+                                ClassicResultsPageLocator.OPENED_PACKAGE_WRAPPER));
+                return;
+            } catch (StaleElementReferenceException | TimeoutException retryable) {
+                // Liste yeniden render olmuş; bir sonraki turda elementi yeniden buluyoruz.
+            }
         }
-        WebElement button = buttons.get(0);
-        scrollToElement(button);
-        clickSafely(button);
+
+        throw new IllegalStateException(
+                leg + " listesinde 'Seç' butonuna tıklandı ancak paket paneli açılmadı " +
+                "(3 deneme). Liste tıklama anında yeniden render oluyor olabilir.");
     }
 
     // ==================================================================
@@ -408,11 +439,20 @@ public class ClassicResultsPage extends BasePage implements FlightResults {
         return !card.findElements(org.openqa.selenium.By.cssSelector(".collapse.show")).isEmpty();
     }
 
-    /** Normal click engellenirse JS ile tıklar (overlay / pointer-events sorunları için). */
+    /**
+     * Normal click engellenirse JS ile tıklar (overlay / pointer-events sorunları için).
+     *
+     * BUG (bulundu): Bu metot önce TÜM exception'ları yakalıyordu. Liste tıklamadan
+     * hemen önce yeniden render olursa element "stale" olur; eski hâli bunu da
+     * yakalayıp AYNI KOPMUŞ element üzerinde JS tıklaması yapıyordu - yani hiçbir
+     * şey olmuyordu, üstelik sessizce. Artık sadece "tıklama engellendi" durumunu
+     * yakalıyoruz; staleness çağırana yayılıyor ki elementi yeniden bulup
+     * tekrar deneyebilsin.
+     */
     private void clickSafely(WebElement element) {
         try {
             element.click();
-        } catch (Exception e) {
+        } catch (ElementNotInteractableException e) {   // ElementClickInterceptedException bunun alt sinifi
             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
         }
     }
