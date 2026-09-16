@@ -82,7 +82,7 @@ public class CheckoutPage extends BasePage {
                     ExpectedConditions.elementToBeClickable(locator));
             scrollToElement(input);
             clearField(input);
-            input.sendKeys(text);
+            input.sendKeys(remainingToType(input, text));
 
             // Sadece autocomplete'li alanda öneri kutusunu kapat. Maskeli alanlarda
             // (telefon) ESCAPE mask tarafından "geri al" olarak yorumlanıp alanı
@@ -130,6 +130,37 @@ public class CheckoutPage extends BasePage {
         for (int i = 0; i < 25 && !isEmpty(input); i++) {
             input.sendKeys(Keys.BACK_SPACE);
         }
+    }
+
+    /**
+     * Alanda ZATEN bulunan kısmı atlayarak yazılması gereken kalanı döner.
+     *
+     * BUG (bulundu, iki koşuda da aynı imzayla): Telefon alanındaki input mask,
+     * alanı boşaltma girişimlerinden sonra bile bir "5" ön eki geri koyuyor
+     * (Türk cep numaraları 5 ile başlıyor). Tüm numarayı yazınca haneler bir
+     * kayıyor ve maxlength sonuncuyu kesiyordu:
+     *
+     *   istenen  5551112233
+     *   oluşan   5 + 555111223(3)  ->  "555 511 1223"
+     *
+     * clearField ile zorla boşaltmayı denedik; mask ön eki her seferinde geri
+     * koyduğu için bu güvenilir olmadı. Bu yüzden alanla SAVAŞMAK yerine ona
+     * UYUM SAĞLIYORUZ: alanda kalan rakamlar hedefin başlangıcıyla eşleşiyorsa,
+     * yalnızca kalan kısmı yazıyoruz. Alan gerçekten boşsa tamamı yazılır.
+     */
+    private static String remainingToType(WebElement input, String text) {
+        String current = input.getDomProperty("value");
+        if (current == null || current.isEmpty()) {
+            return text;
+        }
+
+        String existingDigits = digitsOnly(current);
+        if (!existingDigits.isEmpty()
+                && text.chars().allMatch(Character::isDigit)
+                && text.startsWith(existingDigits)) {
+            return text.substring(existingDigits.length());
+        }
+        return text;
     }
 
     private static boolean isEmpty(WebElement input) {
